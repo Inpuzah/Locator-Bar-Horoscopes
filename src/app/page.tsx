@@ -21,42 +21,42 @@ const fortuneDeck = [
     label: "Rose Ember",
     title: "The Dawn Builder",
     reading:
-      "Your path glows with patient fire. Gather your resources slowly, and the ancient world will reward your steady hands.",
+      "Your aura burns like a fresh torch at spawn. Gather your resources slowly, and the ancient world will reward your steady hands.",
     blessing: "A small miracle is waiting in the next block you place.",
   },
   {
     label: "Emerald Echo",
     title: "The Whispering Grove",
     reading:
-      "The forest is listening. Trust your instincts, and let your heart lead you toward hidden treasures and calm confidence.",
+      "The forest is listening to this green-toned omen. Trust your instincts, and let your heart lead you toward hidden treasures and calm confidence.",
     blessing: "Someone kind will appear when you least expect it.",
   },
   {
     label: "Azure Veil",
     title: "The Moonlit Traveler",
     reading:
-      "You are carried by mystery tonight. Follow the thread of curiosity, for the stars are guiding you to a fresh beginning.",
+      "You are carried by mystery tonight, like diamonds glinting under a cave moon. Follow the thread of curiosity, for the stars are guiding you to a fresh beginning.",
     blessing: "A bold idea will bloom into a beautiful opportunity.",
   },
   {
     label: "Violet Moon",
     title: "The Shadow Seer",
     reading:
-      "Your soul is asking for stillness. Rest, reflect, and let the quiet reveal the truth that your busy mind has missed.",
+      "Your soul is asking for stillness, as if you were standing in the Nether with a full stack of ender pearls. Rest, reflect, and let the quiet reveal the truth that your busy mind has missed.",
     blessing: "Your next choice will awaken a deeper purpose.",
   },
   {
     label: "Amber Lantern",
     title: "The Hearth Keeper",
     reading:
-      "Warmth and wisdom are your gifts today. Share your light generously, and your community will return it tenfold.",
+      "Warmth and wisdom are your gifts today, glowing like a lantern in a hidden mineshaft. Share your light generously, and your community will return it tenfold.",
     blessing: "A cherished connection is about to become brighter.",
   },
   {
     label: "Silver Mist",
     title: "The Dream Weaver",
     reading:
-      "You move between worlds with ease. Let your imagination open the gate, and let your spirit speak through wonder.",
+      "You move between worlds with ease, like a cart gliding across a long abandoned rail line. Let your imagination open the gate, and let your spirit speak through wonder.",
     blessing: "A forgotten dream is ready to return to your hands.",
   },
 ];
@@ -113,6 +113,8 @@ function colorNameFromResult(name: string | undefined) {
   return name?.trim() || "Unknown";
 }
 
+const locatorDotAsset = "/assets/locator_bar_dot.png";
+
 function locatorBarColorFromUuid(uuid: string) {
   const hash = javaUuidHashCode(uuid);
   const rgb = hash & 0xffffff;
@@ -133,8 +135,18 @@ function locatorBarColorFromUuid(uuid: string) {
   };
 }
 
-function fortuneFromRgb(r: number, g: number, b: number) {
-  const index = (r + g + b) % fortuneDeck.length;
+function stringSeed(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) | 0;
+  }
+
+  return Math.abs(hash);
+}
+
+function fortuneFromColorName(colorName: string) {
+  const index = stringSeed(colorName.toLowerCase()) % fortuneDeck.length;
   return fortuneDeck[index];
 }
 
@@ -185,7 +197,7 @@ export default function Home() {
       }
 
       const colorNamePayload = (await colorNameResponse.json()) as { name?: string };
-      const fortune = fortuneFromRgb(locator.rgb.r, locator.rgb.g, locator.rgb.b);
+      const fortune = fortuneFromColorName(colorNameFromResult(colorNamePayload.name));
 
       setResult({
         username: data.name,
@@ -251,48 +263,39 @@ export default function Home() {
         ) : null}
 
         {result ? (
-          <section className="grid w-full gap-6 text-left lg:grid-cols-[1.2fr_0.8fr]">
+          <section className="w-full max-w-4xl text-left">
             <div className="border border-white/10 bg-slate-900/70 p-6 shadow-[0_0_60px_rgba(244,114,182,0.15)]">
               <div className="mb-6 flex items-center gap-3">
                 <div
                   className="h-12 w-12 border-2 border-white/70 shadow-lg"
-                  style={{ backgroundColor: result.color }}
+                  style={{
+                    backgroundColor: result.color,
+                    WebkitMaskImage: `url(${locatorDotAsset})`,
+                    maskImage: `url(${locatorDotAsset})`,
+                    WebkitMaskRepeat: "no-repeat",
+                    maskRepeat: "no-repeat",
+                    WebkitMaskPosition: "center",
+                    maskPosition: "center",
+                    WebkitMaskSize: "contain",
+                    maskSize: "contain",
+                    imageRendering: "pixelated",
+                  }}
                 />
                 <div>
                   <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-                    Locator bar aura
+                    Locator Bar Color
                   </p>
-                  <h2 className="text-xl font-semibold text-white">{result.label}</h2>
+                  <h2 className="text-xl font-semibold text-white">{result.colorName}</h2>
                 </div>
               </div>
 
               <div className="mb-6 h-3" style={{ background: `linear-gradient(90deg, ${result.color}, #ffffff)` }} />
 
+              <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Horoscope tone</p>
               <h3 className="text-2xl font-semibold text-white">{result.title}</h3>
               <p className="mt-3 text-lg leading-8 text-slate-300">{result.reading}</p>
               <p className="mt-6 border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
                 {result.blessing}
-              </p>
-            </div>
-
-            <div className="border border-white/10 bg-gradient-to-br from-fuchsia-500/20 to-cyan-400/10 p-6">
-              <p className="text-sm uppercase tracking-[0.35em] text-slate-300">Account signature</p>
-              <h3 className="mt-3 text-2xl font-semibold text-white">{result.username}</h3>
-              <p className="mt-4 break-all text-sm text-slate-200">UUID: {result.uuid}</p>
-              <p className="mt-4 text-sm text-slate-200">
-                Java UUID hashCode: <span className="font-semibold text-white">{result.hash}</span>
-              </p>
-              <p className="mt-4 text-sm text-slate-200">
-                Base hash RGB: <span className="font-semibold text-white">{result.baseColor}</span>
-              </p>
-              <p className="mt-4 text-sm text-slate-200">
-                Locator bar color (90% darkened): <span className="font-semibold text-white">{result.color}</span>
-              </p>
-              <p className="mt-4 text-sm text-slate-200">
-                Color name from The Color API: <span className="font-semibold text-white">{result.colorName}</span>
-              </p>
-              <p className="mt-4 text-sm text-slate-200">
-                Channels: <span className="font-semibold text-white">R {result.rgb.r}</span> / <span className="font-semibold text-white">G {result.rgb.g}</span> / <span className="font-semibold text-white">B {result.rgb.b}</span>
               </p>
             </div>
           </section>
