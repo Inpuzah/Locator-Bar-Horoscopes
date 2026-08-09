@@ -9,8 +9,13 @@ const minecraftFont = Press_Start_2P({
 });
 
 export const metadata: Metadata = {
-  title: "Minecraft Horoscope Oracle",
+  title: "Minecraft Color Horoscope Reader",
   description: "A mystical, rainbow-touched fortune site that turns a Minecraft UUID into a glowing horoscope.",
+  icons: {
+    icon: "/assets/locator_bar_dot.png",
+    shortcut: "/assets/locator_bar_dot.png",
+    apple: "/assets/locator_bar_dot.png",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

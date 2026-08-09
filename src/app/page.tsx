@@ -171,7 +171,7 @@ export default function Home() {
       <main className="mx-auto flex w-full max-w-5xl flex-col items-center gap-8 border border-white/20 bg-slate-950/55 p-6 text-center shadow-[0_0_80px_rgba(125,211,252,0.25)] backdrop-blur-xl sm:p-10">
         <div className="w-full max-w-3xl space-y-3">
           <h1 className="text-2xl font-semibold text-white sm:text-3xl">
-            Minecraft Color Horoscope Viewer
+            Minecraft Color Horoscope Reader
           </h1>
           <p className="text-sm text-slate-200 sm:text-base">
             Type in your Minecraft username to get your unique horoscope based on your account's Locator Bar color value, which is based on your UUID!
