@@ -1,26 +1,100 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #050816;
+  --foreground: #f8fafc;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-minecraft);
+  --font-mono: var(--font-minecraft);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
+  margin: 0;
+  min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-minecraft), "Courier New", monospace;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background: linear-gradient(120deg, #0f172a, #7c3aed, #ec4899, #38bdf8, #22c55e, #f59e0b, #ef4444);
+  background-size: 400% 400%;
+  animation: rgbShift 18s ease infinite;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(circle at top, rgba(255,255,255,0.22), transparent 38%);
+  backdrop-filter: blur(20px);
+}
+
+::selection {
+  background: rgba(192, 132, 252, 0.55);
+  color: white;
+}
+
+.xp-bar-shell {
+  --xp-scale: 3;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.xp-bar-track {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.xp-bar-fill {
+  width: calc(182px * var(--xp-scale));
+  max-width: 100%;
+  height: calc(5px * var(--xp-scale));
+  background-image: url("/assets/experience_bar_progress.png");
+  background-repeat: no-repeat;
+  background-color: transparent;
+  background-size: calc(182px * var(--xp-scale)) calc(120px * var(--xp-scale));
+  image-rendering: pixelated;
+  animation: xpFrameShift 4.8s steps(24, end) infinite;
+}
+
+@keyframes rgbShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes xpFrameShift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 0 calc(-120px * var(--xp-scale));
+  }
 }
