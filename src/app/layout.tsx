@@ -9,7 +9,7 @@ const minecraftFont = Press_Start_2P({
 });
 
 export const metadata: Metadata = {
-  title: "Minecraft Color Horoscope Reader",
+  title: "MINECRAFT ZODIAC",
   description: "A mystical, rainbow-touched fortune site that turns a Minecraft UUID into a glowing horoscope.",
   icons: {
     icon: "/assets/locator_bar_dot.png",
