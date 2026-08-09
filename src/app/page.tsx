@@ -209,7 +209,7 @@ export default function Home() {
         ) : null}
 
         {result ? (
-          <section className="w-full max-w-4xl text-left">
+          <section className="grid w-full max-w-4xl gap-4 text-left lg:grid-cols-[1fr_220px]">
             <div className="border border-white/10 bg-slate-900/70 p-6 shadow-[0_0_60px_rgba(244,114,182,0.15)]">
               <div className="mb-6 flex items-center gap-3">
                 <button
@@ -252,12 +252,33 @@ export default function Home() {
                 {result.blessing}
               </p>
             </div>
+
+            <aside className="border border-white/10 bg-slate-900/70 p-4">
+              <img
+                src={`https://mc-heads.net/body/${encodeURIComponent(result.username)}/left`}
+                alt={`${result.username} 3D Minecraft skin render`}
+                className="mx-auto h-auto w-full max-w-[180px] object-contain [image-rendering:pixelated]"
+                loading="lazy"
+              />
+            </aside>
           </section>
         ) : (
           <div className="w-full border border-dashed border-white/20 bg-slate-900/40 p-8 text-center text-slate-300">
             Your fortune is waiting in the mist. Try a name and let the locator bar reveal your path.
           </div>
         )}
+
+        <p className="w-full text-center text-xs text-slate-300 sm:text-sm">
+          Created by Inpuzah, with inspiration from {" "}
+          <a
+            href="https://discord.gg/jeffska"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2"
+          >
+            Jeff&apos;s Discord Community
+          </a>
+        </p>
 
         <footer className="w-full pt-2 text-center text-[10px] text-slate-300/75 sm:text-xs">
           Made for fun and curiosity only; horoscope results are symbolic and should not be taken as factual guidance.
