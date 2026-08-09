@@ -1,12 +1,14 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { locatorColorFromUuid } from "@/lib/uuid-locator-color";
 
 type FortuneResult = {
   username: string;
   uuid: string;
   hash: number;
   baseColor: string;
+  baseRgb: { r: number; g: number; b: number };
   color: string;
   colorName: string;
   rgb: { r: number; g: number; b: number };
@@ -61,79 +63,15 @@ const fortuneDeck = [
   },
 ];
 
-function normalizeUuid(uuid: string) {
-  const hex = uuid.replace(/-/g, "").toLowerCase();
-  if (!/^[0-9a-f]{32}$/.test(hex)) {
-    throw new Error("Unable to read UUID shape from Mojang profile data.");
-  }
-  return hex;
-}
-
-function toDashedUuid(uuid: string) {
-  const hex = normalizeUuid(uuid);
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
-function toSignedInt32(value: bigint) {
-  const low = Number(value & BigInt("0xffffffff"));
-  return low >= 0x80000000 ? low - 0x100000000 : low;
-}
-
-function javaUuidHashCode(uuid: string) {
-  const hex = normalizeUuid(uuid);
-  const msb = BigInt(`0x${hex.slice(0, 16)}`);
-  const lsb = BigInt(`0x${hex.slice(16)}`);
-  const hilo = msb ^ lsb;
-  const upper = toSignedInt32(hilo >> BigInt(32));
-  const lower = toSignedInt32(hilo);
-  return (upper ^ lower) | 0;
-}
-
-function toHexColor(r: number, g: number, b: number) {
-  return `#${[r, g, b]
-    .map((channel) => channel.toString(16).padStart(2, "0"))
-    .join("")
-    .toUpperCase()}`;
-}
-
-function rgbFromHex(hex: string) {
-  const normalized = hex.replace("#", "").trim();
-  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
-    throw new Error("Invalid hex color override.");
-  }
-
-  return {
-    r: Number.parseInt(normalized.slice(0, 2), 16),
-    g: Number.parseInt(normalized.slice(2, 4), 16),
-    b: Number.parseInt(normalized.slice(4, 6), 16),
-  };
-}
-
 function colorNameFromResult(name: string | undefined) {
   return name?.trim() || "Unknown";
 }
 
-const locatorDotAsset = "/assets/locator_bar_dot.png";
-
-function locatorBarColorFromUuid(uuid: string) {
-  const hash = javaUuidHashCode(uuid);
-  const rgb = hash & 0xffffff;
-
-  const baseR = (rgb >> 16) & 0xff;
-  const baseG = (rgb >> 8) & 0xff;
-  const baseB = rgb & 0xff;
-
-  const r = Math.trunc(baseR * 0.9);
-  const g = Math.trunc(baseG * 0.9);
-  const b = Math.trunc(baseB * 0.9);
-
-  return {
-    hash,
-    baseColor: toHexColor(baseR, baseG, baseB),
-    color: toHexColor(r, g, b),
-    rgb: { r, g, b },
-  };
+function rgbText(rgb: { r: number; g: number; b: number }) {
+  return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
 }
+
+const locatorDotAsset = "/assets/locator_bar_dot.png";
 
 function stringSeed(value: string) {
   let hash = 0;
@@ -155,6 +93,7 @@ export default function Home() {
   const [result, setResult] = useState<FortuneResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showUndarkened, setShowUndarkened] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -178,17 +117,9 @@ export default function Home() {
       }
 
       const data = await response.json();
-      const locator =
-        data.name?.toLowerCase() === "jeff"
-          ? {
-              hash: javaUuidHashCode(data.id),
-              baseColor: "#FF77B0",
-              color: "#E66E9A",
-              rgb: rgbFromHex("#E66E9A"),
-            }
-          : locatorBarColorFromUuid(data.id);
+      const locator = locatorColorFromUuid(data.id);
       const colorNameResponse = await fetch(
-        `/api/color-name?hex=${encodeURIComponent(locator.color)}`
+        `/api/color-name?hex=${encodeURIComponent(locator.shadedHex)}`
       );
 
       if (!colorNameResponse.ok) {
@@ -199,14 +130,17 @@ export default function Home() {
       const colorNamePayload = (await colorNameResponse.json()) as { name?: string };
       const fortune = fortuneFromColorName(colorNameFromResult(colorNamePayload.name));
 
+      setShowUndarkened(false);
+
       setResult({
         username: data.name,
-        uuid: toDashedUuid(data.id),
+        uuid: locator.canonicalUuid,
         hash: locator.hash,
-        baseColor: locator.baseColor,
-        color: locator.color,
+        baseColor: locator.baseHex,
+        baseRgb: locator.baseRgb,
+        color: locator.shadedHex,
         colorName: colorNameFromResult(colorNamePayload.name),
-        rgb: locator.rgb,
+        rgb: locator.shadedRgb,
         label: fortune.label,
         title: fortune.title,
         reading: fortune.reading,
@@ -219,6 +153,18 @@ export default function Home() {
       setLoading(false);
     }
   }
+
+  const activeColor = result
+    ? showUndarkened
+      ? result.baseColor
+      : result.color
+    : "#FFFFFF";
+  const activeColorLabel = showUndarkened
+    ? "Raw UUID color"
+    : "In-game color";
+  const toggleTooltip = showUndarkened
+    ? "Active: Raw UUID color. Click to switch to In-game color."
+    : "Active: In-game color. Click to switch to Raw UUID color.";
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
@@ -266,10 +212,13 @@ export default function Home() {
           <section className="w-full max-w-4xl text-left">
             <div className="border border-white/10 bg-slate-900/70 p-6 shadow-[0_0_60px_rgba(244,114,182,0.15)]">
               <div className="mb-6 flex items-center gap-3">
-                <div
-                  className="h-12 w-12 border-2 border-white/70 shadow-lg"
+                <button
+                  type="button"
+                  aria-label="Toggle between in-game darkened color and undarkened hash color"
+                  className="group relative h-12 w-12 border-2 border-white/70 shadow-lg"
+                  onClick={() => setShowUndarkened((value) => !value)}
                   style={{
-                    backgroundColor: result.color,
+                    backgroundColor: activeColor,
                     WebkitMaskImage: `url(${locatorDotAsset})`,
                     maskImage: `url(${locatorDotAsset})`,
                     WebkitMaskRepeat: "no-repeat",
@@ -280,16 +229,21 @@ export default function Home() {
                     maskSize: "contain",
                     imageRendering: "pixelated",
                   }}
-                />
+                >
+                  <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-56 -translate-x-1/2 border border-white/20 bg-slate-950 px-2 py-1 text-[10px] text-slate-100 opacity-0 transition-opacity group-hover:opacity-100">
+                    {toggleTooltip}
+                  </span>
+                </button>
                 <div>
                   <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
                     Locator Bar Color
                   </p>
                   <h2 className="text-xl font-semibold text-white">{result.colorName}</h2>
+                  <p className="text-xs text-slate-300">{activeColor} • {activeColorLabel}</p>
                 </div>
               </div>
 
-              <div className="mb-6 h-3" style={{ background: `linear-gradient(90deg, ${result.color}, #ffffff)` }} />
+              <div className="mb-6 h-3" style={{ background: `linear-gradient(90deg, ${activeColor}, #ffffff)` }} />
 
               <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Horoscope tone</p>
               <h3 className="text-2xl font-semibold text-white">{result.title}</h3>

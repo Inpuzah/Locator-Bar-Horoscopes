@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { MojangProfileProvider } from "@/lib/profile-provider";
+
+const profileProvider = new MojangProfileProvider();
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -12,43 +15,26 @@ export async function GET(request: Request) {
   }
 
   try {
-    const upstream = await fetch(
-      `https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(username)}`,
-      {
-        headers: {
-          Accept: "application/json",
-        },
-        cache: "no-store",
-      }
-    );
+    const profile = await profileProvider.resolveByUsername(username);
 
-    if (upstream.status === 204 || upstream.status === 404) {
+    if (!profile) {
       return NextResponse.json(
         { error: "No Minecraft account was found with that username." },
         { status: 404 }
       );
     }
 
-    if (!upstream.ok) {
-      return NextResponse.json(
-        { error: "Mojang lookup is unavailable right now. Please try again." },
-        { status: 502 }
-      );
-    }
-
-    const profile = (await upstream.json()) as { id?: string; name?: string };
-
-    if (!profile?.id || !profile?.name) {
+    return NextResponse.json({ id: profile.id, name: profile.name });
+  } catch (error) {
+    if (error instanceof Error && error.message === "INVALID_UPSTREAM_PAYLOAD") {
       return NextResponse.json(
         { error: "Mojang returned an unexpected profile response." },
         { status: 502 }
       );
     }
 
-    return NextResponse.json({ id: profile.id, name: profile.name });
-  } catch {
     return NextResponse.json(
-      { error: "Unable to reach Mojang right now. Check your connection and retry." },
+      { error: "Mojang lookup is unavailable right now. Please try again." },
       { status: 502 }
     );
   }
