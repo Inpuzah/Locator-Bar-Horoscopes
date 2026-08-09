@@ -1,7 +1,7 @@
 "use client";
 
-import html2canvas from "html2canvas";
-import { FormEvent, useRef, useState } from "react";
+import { toBlob } from "html-to-image";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { locatorColorFromUuid } from "@/lib/uuid-locator-color";
 
 type FortuneResult = {
@@ -201,7 +201,7 @@ function fortuneFromColor(
     title: `${band.archetype} of ${colorName}`,
     personality: `${username}, your ${colorName} locator color places you in the ${band.band} band. This suggests ${band.personality}.`,
     fortune: `${username}, over the next cycle ${band.future}.`,
-    omen: `Minecraft omen: ${band.omen}.`,
+    omen: `${band.omen.charAt(0).toUpperCase()}${band.omen.slice(1)}.`,
   };
 }
 
@@ -212,8 +212,68 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [showUndarkened, setShowUndarkened] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
-  const [copyOutputState, setCopyOutputState] = useState<"idle" | "copied" | "downloaded" | "error">("idle");
-  const outputRef = useRef<HTMLElement | null>(null);
+  const [shareCopyState, setShareCopyState] = useState<
+    "idle" | "copying" | "copied" | "downloaded" | "error"
+  >("idle");
+  const [shareSkinUrl, setShareSkinUrl] = useState<string | null>(null);
+  const shareCardRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadShareSkin() {
+      if (!result) {
+        setShareSkinUrl(null);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/skin-render?username=${encodeURIComponent(result.username)}&view=left`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to load skin render.");
+        }
+
+        const blob = await response.blob();
+
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error("Failed to read skin render."));
+          reader.readAsDataURL(blob);
+        });
+
+        if (!active) {
+          return;
+        }
+
+        setShareSkinUrl(dataUrl);
+      } catch {
+        if (active) {
+          setShareSkinUrl(null);
+        }
+      }
+    }
+
+    loadShareSkin();
+
+    return () => {
+      active = false;
+    };
+  }, [result]);
+
+  function downloadPngBlob(blob: Blob, username: string) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${username}-minecraft-zodiac.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
 
   async function handleCopyHex() {
     try {
@@ -226,180 +286,49 @@ export default function Home() {
     }
   }
 
-  function downloadOutputPng(imageBlob: Blob) {
-    const downloadUrl = URL.createObjectURL(imageBlob);
-    const anchor = document.createElement("a");
-    anchor.href = downloadUrl;
-    anchor.download = `minecraft-zodiac-${name.trim() || "output"}.png`;
-    anchor.click();
-    URL.revokeObjectURL(downloadUrl);
-  }
-
-  async function waitForOutputImages(container: HTMLElement) {
-    const images = Array.from(container.querySelectorAll("img"));
-
-    await Promise.all(
-      images.map(async (image) => {
-        if (image.complete && image.naturalWidth > 0) {
-          return;
-        }
-
-        await new Promise<void>((resolve) => {
-          const done = () => {
-            image.removeEventListener("load", done);
-            image.removeEventListener("error", done);
-            resolve();
-          };
-
-          image.addEventListener("load", done, { once: true });
-          image.addEventListener("error", done, { once: true });
-        });
-      })
-    );
-  }
-
-  function blobFromCanvas(canvas: HTMLCanvasElement) {
-    return new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((blob) => {
-        if (blob) {
-          resolve(blob);
-          return;
-        }
-
-        const dataUrl = canvas.toDataURL("image/png");
-        const parts = dataUrl.split(",");
-
-        if (parts.length !== 2) {
-          resolve(null);
-          return;
-        }
-
-        const base64 = parts[1];
-        const binary = atob(base64);
-        const bytes = new Uint8Array(binary.length);
-
-        for (let index = 0; index < binary.length; index += 1) {
-          bytes[index] = binary.charCodeAt(index);
-        }
-
-        resolve(new Blob([bytes], { type: "image/png" }));
-      }, "image/png");
-    });
-  }
-
-  function isCanvasBlank(canvas: HTMLCanvasElement) {
-    const context = canvas.getContext("2d");
-
-    if (!context) {
-      return true;
+  async function handleCopySharePng() {
+    if (!shareCardRef.current || !result) {
+      return;
     }
-
-    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
-
-    for (let index = 3; index < data.length; index += 4) {
-      if (data[index] !== 0) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  async function captureOutputPngBlob() {
-    if (!outputRef.current) {
-      throw new Error("Output container not found.");
-    }
-
-    const source = outputRef.current;
-    await waitForOutputImages(source);
-
-    const rect = source.getBoundingClientRect();
-    const captureWidth = Math.max(1, Math.ceil(rect.width));
-    const captureHeight = Math.max(1, Math.ceil(rect.height));
-
-    const host = document.createElement("div");
-    host.style.position = "fixed";
-    host.style.left = "-100000px";
-    host.style.top = "0";
-    host.style.pointerEvents = "none";
-    host.style.backgroundColor = activeColor;
-    host.style.padding = "10px";
-    host.style.border = "1px solid rgba(255,255,255,0.25)";
-    host.style.boxSizing = "border-box";
-    host.style.width = `${captureWidth}px`;
-    host.style.overflow = "visible";
-
-    const clone = source.cloneNode(true) as HTMLElement;
-    clone.style.width = `${captureWidth}px`;
-    clone.style.maxWidth = "none";
-    clone.style.margin = "0";
-    clone.style.boxSizing = "border-box";
-
-    host.appendChild(clone);
-    document.body.appendChild(host);
-
-    const captureAttempts = [
-      {
-        backgroundColor: activeColor,
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        foreignObjectRendering: false,
-        logging: false,
-        imageTimeout: 15000,
-      },
-      {
-        backgroundColor: activeColor,
-        scale: 2,
-        useCORS: false,
-        allowTaint: true,
-        foreignObjectRendering: false,
-        logging: false,
-        imageTimeout: 15000,
-      },
-    ] as const;
 
     try {
-      await waitForOutputImages(clone);
+      setShareCopyState("copying");
+
       if (document.fonts?.ready) {
         await document.fonts.ready;
       }
 
-      for (const options of captureAttempts) {
-        try {
-          const canvas = await html2canvas(host, {
-            ...options,
-            width: host.offsetWidth,
-            height: host.offsetHeight || captureHeight,
-            windowWidth: host.offsetWidth,
-            windowHeight: host.offsetHeight || captureHeight,
-            scrollX: 0,
-            scrollY: 0,
+      const imageElements = Array.from(
+        shareCardRef.current.querySelectorAll("img")
+      );
+
+      await Promise.all(
+        imageElements.map((image) => {
+          if (image.complete && image.naturalWidth > 0) {
+            return Promise.resolve();
+          }
+
+          return new Promise<void>((resolve) => {
+            image.addEventListener("load", () => resolve(), { once: true });
+            image.addEventListener("error", () => resolve(), { once: true });
           });
+        })
+      );
 
-          if (isCanvasBlank(canvas)) {
-            continue;
-          }
+      const blob = await toBlob(shareCardRef.current, {
+        pixelRatio: 2,
+        backgroundColor: activeColor,
+        width: 1200,
+        height: 630,
+        style: {
+          width: "1200px",
+          height: "630px",
+        },
+      });
 
-          const imageBlob = await blobFromCanvas(canvas);
-
-          if (imageBlob) {
-            return imageBlob;
-          }
-        } catch {
-          // Continue to next strategy.
-        }
+      if (!blob) {
+        throw new Error("Failed to generate share PNG.");
       }
-    } finally {
-      host.remove();
-    }
-
-    throw new Error("Unable to create PNG image.");
-  }
-
-  async function handleCopyOutputPng() {
-    try {
-      const imageBlob = await captureOutputPngBlob();
 
       const canWritePng =
         typeof ClipboardItem !== "undefined" &&
@@ -410,24 +339,25 @@ export default function Home() {
         try {
           await navigator.clipboard.write([
             new ClipboardItem({
-              "image/png": imageBlob,
+              "image/png": blob,
             }),
           ]);
 
-          setCopyOutputState("copied");
-          window.setTimeout(() => setCopyOutputState("idle"), 1200);
+          setShareCopyState("copied");
+          window.setTimeout(() => setShareCopyState("idle"), 1500);
           return;
         } catch {
-          // Fall through to a download fallback if clipboard write fails.
+          // Fall through to download fallback.
         }
       }
 
-      downloadOutputPng(imageBlob);
-      setCopyOutputState("downloaded");
-      window.setTimeout(() => setCopyOutputState("idle"), 1400);
-    } catch {
-      setCopyOutputState("error");
-      window.setTimeout(() => setCopyOutputState("idle"), 1200);
+      downloadPngBlob(blob, result.username);
+      setShareCopyState("downloaded");
+      window.setTimeout(() => setShareCopyState("idle"), 1600);
+    } catch (err) {
+      console.error("[share-png] failed:", err);
+      setShareCopyState("error");
+      window.setTimeout(() => setShareCopyState("idle"), 1600);
     }
   }
 
@@ -469,7 +399,7 @@ export default function Home() {
 
       setShowUndarkened(false);
       setCopyState("idle");
-      setCopyOutputState("idle");
+      setShareCopyState("idle");
 
       setResult({
         username: data.name,
@@ -549,7 +479,8 @@ export default function Home() {
         ) : null}
 
         {result ? (
-          <section ref={outputRef} className="grid w-full max-w-4xl items-start gap-4 text-left lg:grid-cols-[1fr_220px]">
+          <>
+          <section className="grid w-full max-w-4xl items-start gap-4 text-left lg:grid-cols-[1fr_220px]">
             <div className="border border-white/10 bg-slate-900/70 p-6 shadow-[0_0_60px_rgba(244,114,182,0.15)]">
               <div className="mb-6 flex items-center gap-3">
                 <button
@@ -607,7 +538,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="self-start">
+            <div className="flex flex-col gap-4 self-stretch">
               <aside className="border border-white/10 bg-slate-900/70 p-4">
                 <img
                   src={`/api/skin-render?username=${encodeURIComponent(result.username)}&view=left`}
@@ -616,8 +547,200 @@ export default function Home() {
                   loading="lazy"
                 />
               </aside>
+              <div className="flex flex-1 flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopySharePng}
+                  aria-label="Copy share PNG"
+                  title="Copy Share PNG"
+                  className="relative flex flex-1 items-center justify-center border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
+                >
+                  {shareCopyState === "copying" ? (
+                    <span>Copying...</span>
+                  ) : shareCopyState === "copied" ? (
+                    <span>Copied PNG!</span>
+                  ) : shareCopyState === "downloaded" ? (
+                    <span>Downloaded PNG</span>
+                  ) : shareCopyState === "error" ? (
+                    <span>Copy failed</span>
+                  ) : (
+                    <span className="flex h-full w-full flex-col items-center justify-center gap-2 py-1">
+                      <span
+                        aria-hidden
+                        className="w-full flex-1"
+                        style={{
+                          backgroundColor: "#ffffff",
+                          WebkitMaskImage: "url(/assets/icons8-copy-64.png)",
+                          maskImage: "url(/assets/icons8-copy-64.png)",
+                          WebkitMaskRepeat: "no-repeat",
+                          maskRepeat: "no-repeat",
+                          WebkitMaskPosition: "center",
+                          maskPosition: "center",
+                          WebkitMaskSize: "contain",
+                          maskSize: "contain",
+                        }}
+                      />
+                      <span className="text-sm font-semibold text-white">Share PNG →</span>
+                    </span>
+                  )}
+                </button>
+                {shareCopyState === "downloaded" ? (
+                  <p className="text-center text-[11px] text-cyan-300">Clipboard unavailable, PNG downloaded</p>
+                ) : null}
+              </div>
             </div>
           </section>
+
+          <div
+            aria-hidden
+            className="pointer-events-none fixed left-[-99999px] top-0"
+          >
+            <div
+              ref={shareCardRef}
+              style={{
+                width: "1200px",
+                height: "630px",
+                boxSizing: "border-box",
+                display: "flex",
+                flexDirection: "column",
+                gap: "24px",
+                padding: "40px",
+                backgroundColor: activeColor,
+                fontFamily: "inherit",
+                color: "#e2e8f0",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  flex: "1 1 0%",
+                  minHeight: 0,
+                  display: "flex",
+                  gap: "32px",
+                }}
+              >
+                <div
+                  style={{
+                    flex: "1 1 0%",
+                    minWidth: 0,
+                    boxSizing: "border-box",
+                    display: "flex",
+                    flexDirection: "column",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    backgroundColor: "rgba(15,23,42,0.82)",
+                    padding: "32px",
+                    overflow: "hidden",
+                    textAlign: "left",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "14px", marginBottom: "20px" }}>
+                    <div
+                      style={{
+                        height: "48px",
+                        width: "48px",
+                        flex: "0 0 auto",
+                        border: "2px solid rgba(255,255,255,0.7)",
+                        backgroundColor: activeColor,
+                        WebkitMaskImage: `url(${locatorDotAsset})`,
+                        maskImage: `url(${locatorDotAsset})`,
+                        WebkitMaskRepeat: "no-repeat",
+                        maskRepeat: "no-repeat",
+                        WebkitMaskPosition: "center",
+                        maskPosition: "center",
+                        WebkitMaskSize: "contain",
+                        maskSize: "contain",
+                        imageRendering: "pixelated",
+                      }}
+                    />
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8" }}>
+                        Locator Bar Color
+                      </p>
+                      <h2 style={{ margin: "2px 0 0", fontSize: "20px", fontWeight: 600, color: "#ffffff", overflowWrap: "break-word" }}>
+                        {result.colorName}
+                      </h2>
+                      <div style={{ marginTop: "4px", fontSize: "12px", color: "#cbd5e1" }}>
+                        {activeColor} • {activeColorLabel}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      height: "10px",
+                      marginBottom: "22px",
+                      background: `linear-gradient(90deg, ${activeColor}, #ffffff)`,
+                    }}
+                  />
+
+                  <h3 style={{ margin: 0, fontSize: "24px", fontWeight: 600, color: "#ffffff", overflowWrap: "break-word" }}>
+                    {result.title}
+                  </h3>
+                  <p style={{ margin: "14px 0 0", fontSize: "14px", lineHeight: 1.5, color: "#cbd5e1", overflowWrap: "break-word" }}>
+                    <span style={{ fontWeight: 600, color: "#ffffff" }}>Who you are:</span> {result.personality}
+                  </p>
+                  <p style={{ margin: "12px 0 0", fontSize: "14px", lineHeight: 1.5, color: "#cbd5e1", overflowWrap: "break-word" }}>
+                    <span style={{ fontWeight: 600, color: "#ffffff" }}>Your fortune:</span> {result.fortune}
+                  </p>
+                  <p style={{ margin: "12px 0 0", fontSize: "13px", lineHeight: 1.45, fontStyle: "italic", color: "#94a3b8", overflowWrap: "break-word" }}>
+                    <span style={{ fontWeight: 600, color: "#e2e8f0", fontStyle: "normal" }}>Omen:</span> {result.omen}
+                  </p>
+                </div>
+
+                <div
+                  style={{
+                    width: "280px",
+                    flex: "0 0 auto",
+                    boxSizing: "border-box",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    backgroundColor: "rgba(15,23,42,0.82)",
+                    padding: "24px",
+                  }}
+                >
+                  {shareSkinUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={shareSkinUrl}
+                      alt={`${result.username} 3D Minecraft skin render`}
+                      style={{
+                        maxHeight: "440px",
+                        maxWidth: "100%",
+                        objectFit: "contain",
+                        imageRendering: "pixelated",
+                      }}
+                    />
+                  ) : null}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  flex: "0 0 auto",
+                  boxSizing: "border-box",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "10px",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  backgroundColor: "rgba(15,23,42,0.82)",
+                  padding: "16px",
+                  fontSize: "20px",
+                  fontWeight: 700,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: "#ffffff",
+                  textAlign: "center",
+                }}
+              >
+                <span>Get your Minecraft Zodiac at</span>
+                <span style={{ color: "#38bdf8" }}>mczodiac.dev</span>
+              </div>
+            </div>
+          </div>
+          </>
         ) : (
           <div className="w-full border border-dashed border-white/20 bg-slate-900/40 p-8 text-center text-slate-300">
             Your fortune is waiting in the mist. Try a name and let the locator bar reveal your path.
