@@ -693,20 +693,42 @@ export default function Home() {
                     flex: "0 0 auto",
                     boxSizing: "border-box",
                     display: "flex",
+                    flexDirection: "column",
                     alignItems: "center",
-                    justifyContent: "center",
+                    justifyContent: "flex-start",
+                    gap: "16px",
                     border: "1px solid rgba(255,255,255,0.10)",
                     backgroundColor: "rgba(15,23,42,0.82)",
                     padding: "24px",
+                    overflow: "hidden",
                   }}
                 >
+                  <p
+                    style={{
+                      margin: 0,
+                      flex: "0 0 auto",
+                      maxWidth: "100%",
+                      fontSize: `${Math.min(28, Math.floor((232 / Math.max(result.username.length, 1)) * 1.6))}px`,
+                      lineHeight: 1.1,
+                      fontWeight: 700,
+                      color: "#ffffff",
+                      textAlign: "center",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {result.username}
+                  </p>
                   {shareSkinUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={shareSkinUrl}
                       alt={`${result.username} 3D Minecraft skin render`}
                       style={{
-                        maxHeight: "440px",
+                        flex: "1 1 0%",
+                        minHeight: 0,
+                        maxHeight: "100%",
                         maxWidth: "100%",
                         objectFit: "contain",
                         imageRendering: "pixelated",
