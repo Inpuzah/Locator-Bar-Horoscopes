@@ -708,7 +708,7 @@ export default function Home() {
                       margin: 0,
                       flex: "0 0 auto",
                       maxWidth: "100%",
-                      fontSize: `${Math.min(28, Math.floor((232 / Math.max(result.username.length, 1)) * 1.6))}px`,
+                      fontSize: `${Math.min(24, Math.floor(216 / Math.max(result.username.length, 1)))}px`,
                       lineHeight: 1.1,
                       fontWeight: 700,
                       color: "#ffffff",
