@@ -215,24 +215,30 @@ export default function Home() {
   const [shareCopyState, setShareCopyState] = useState<
     "idle" | "copying" | "copied" | "downloaded" | "error"
   >("idle");
-  const [shareSkinUrl, setShareSkinUrl] = useState<string | null>(null);
+  const [skin, setSkin] = useState<{ username: string; url: string } | null>(null);
+  const [skinError, setSkinError] = useState(false);
   const shareCardRef = useRef<HTMLDivElement | null>(null);
+  const shareSkinUrl = skin?.username === result?.username ? skin?.url : null;
 
   useEffect(() => {
     let active = true;
 
     async function loadShareSkin() {
       if (!result) {
-        setShareSkinUrl(null);
+        setSkin(null);
+        setSkinError(false);
         return;
       }
 
+      setSkin(null);
+      setSkinError(false);
+
       try {
         const response = await fetch(
-          `/api/skin-render?username=${encodeURIComponent(result.username)}&view=left`
+          `https://mc-heads.net/body/${encodeURIComponent(result.username)}/left`
         );
 
-        if (!response.ok) {
+        if (!response.ok || !response.headers.get("content-type")?.startsWith("image/")) {
           throw new Error("Failed to load skin render.");
         }
 
@@ -249,10 +255,12 @@ export default function Home() {
           return;
         }
 
-        setShareSkinUrl(dataUrl);
-      } catch {
+        setSkin({ username: result.username, url: dataUrl });
+      } catch (error) {
         if (active) {
-          setShareSkinUrl(null);
+          console.error("[skin-render] failed:", error);
+          setSkin(null);
+          setSkinError(true);
         }
       }
     }
@@ -540,12 +548,18 @@ export default function Home() {
 
             <div className="flex flex-col gap-4 self-stretch">
               <aside className="border border-white/10 bg-slate-900/70 p-4">
-                <img
-                  src={`/api/skin-render?username=${encodeURIComponent(result.username)}&view=left`}
-                  alt={`${result.username} 3D Minecraft skin render`}
-                  className="mx-auto h-auto max-h-[340px] w-full max-w-[180px] object-contain [image-rendering:pixelated]"
-                  loading="lazy"
-                />
+                {shareSkinUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={shareSkinUrl}
+                    alt={`${result.username} 3D Minecraft skin render`}
+                    className="mx-auto h-auto max-h-[340px] w-full max-w-[180px] object-contain [image-rendering:pixelated]"
+                  />
+                ) : (
+                  <p className="text-center text-sm text-slate-300" role={skinError ? "alert" : "status"}>
+                    {skinError ? "Unable to load skin render." : "Loading skin render..."}
+                  </p>
+                )}
               </aside>
               <div className="flex flex-1 flex-col gap-2">
                 <button
